@@ -2,20 +2,15 @@ syntax = "proto3";
 
 package mapreduce;
 
-message FileRequest {
-    string file_path = 1;
-}
-
-messageWordCount {
-    string word = 1;
-    int32 count = 2;
-}
-
-message MapReduce Response {
-    repeated WordCount word_counts = 1;
-}
-
 service MapReduce {
-    rpc Map(FileRequest) returns (MapReduceResponse);
-    rpc Reduce(stream WordCount) returns (MapReduceResponse);
+    rpc mapCall (MapRequest) returns (MapResponse);
+}
+
+message MapRequest {
+    string worker_id = 1;
+}
+
+message MapResponse {
+    string filename = 1;
+    int32 process_id = 2;
 }
