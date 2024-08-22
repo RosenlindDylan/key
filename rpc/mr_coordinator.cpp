@@ -12,18 +12,26 @@ using mapreduce::MapReduce;
 using mapreduce::MapRequest;
 using mapreduce::MapResponse;
 
-
+// we're hitting race conditions on filenames
 
 class MRCoordinator final : public MapReduce::Service {
 public:
     Status mapCall(ServerContext* context, const MapRequest* req, MapResponse* res) override {
-        std::cout << "Processing here" << std::endl;
-        std::string worker = "Requesting worker was : " + req->worker_id();
-        std::string filename = filenames[process_value];
-        res->set_filename(filename);
-        res->set_process_id(process_value);
-        process_value++;
-        return Status::OK;
+        if (process_value < filenames.size()) {
+            std::cout << "Processing here" << std::endl;
+            std::string worker = "Requesting worker was : " + req->worker_id();
+            std::string filename = filenames[process_value];
+            res->set_filename(filename);
+            res->set_process_id(process_value);
+            process_value++;
+            return Status::OK;
+        } else {
+            std::cout << "Done processing files" << std::endl;
+            res->set_filename("");
+            res->set_process_id(-1);
+            return Status::OK; // this is in regards to the rpc working
+        }
+        
     }
 
 private:
@@ -50,14 +58,19 @@ void runServer() {
 }
 
 int main(int argc, char** argv) {
-    /*
+    
     int num_mappers = *argv[1];
-    int num_reducers = *argv[2];
-    */
+    // int num_reducers = *argv[2];
+    
     
     runServer();
     
 
+    // intermediate step
+
+    // shuffle and sort
+    // first combine to one file
+    int num_files = 8;
 
 
     /*

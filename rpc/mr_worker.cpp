@@ -5,7 +5,7 @@
 #include <sstream>
 #include <string>
 #include <grpcpp/grpcpp.h>
-#include "./mapreduce.grpc.pb.h"
+#include "./mapreduce.grpc.pb.h" 
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -14,13 +14,15 @@ using mapreduce::MapReduce;
 using mapreduce::MapRequest;
 using mapreduce::MapResponse;
 
+// we're hitting race conditions on filenames
+
 void mapf(const std::string & ifname, std::ifstream & input, std::ofstream & output);
 
 class MapClient {
 public:
     MapClient(std::shared_ptr<Channel> channel) : stub_(MapReduce::NewStub(channel)) {}
 
-    void mapCall(const std::string worker_id) {
+    bool mapCall(const std::string worker_id) {
         MapRequest request;
         request.set_worker_id(worker_id);
 
@@ -36,17 +38,23 @@ public:
             std::cerr << "RPC failed: " << status.error_message() << std::endl;
         }
 
-        // call map on the filename 
-        std::string ifname;
-        ifname = response.filename();
-        std::ifstream input(ifname);
-        
-        std::string ofname;
-        ofname = "mr-" + worker_id + "-" + std::to_string(response.process_id()) + ifname; // only temporarily appending filename to check for race conditions on getting files (gdb says multithreaded server?)
-        std::ofstream output;
-        output.open(ofname);
+        if (response.process_id() > -1) {
+            // call map on the filename 
+            std::string ifname;
+            ifname = response.filename();
+            std::ifstream input(ifname);
+            
+            std::string ofname;
+            ofname = "mr-" + worker_id + "-" + std::to_string(response.process_id()) + ifname; // only temporarily appending filename to check for race conditions on getting files (gdb says multithreaded server?)
+            std::ofstream output;
+            output.open(ofname);
 
-        mapf(ifname, input, output);
+            mapf(ifname, input, output);
+            return true;
+        } else {
+            return false;
+        }
+            
     }
 
 private:
@@ -87,12 +95,19 @@ void mapf(const std::string & ifname, std::ifstream & input, std::ofstream & out
 
 */
 int main(int argc, char** argv) {
-    /* int worker_id = *argv[1];
-    */
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <worker_id>" << std::endl;
+        return 1;
+    }
+    int worker_id = std::stoi(argv[1]);
 
     MapClient client(grpc::CreateChannel("0.0.0.0:50051",
         grpc::InsecureChannelCredentials()));
-    client.mapCall("1");
+    
+    bool flag = true;
+    while (flag) { 
+        flag = client.mapCall(std::to_string(worker_id));
+    }
 
     return 0;
 }
