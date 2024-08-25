@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <mutex>
 #include <grpcpp/grpcpp.h>
 #include "./mapreduce.grpc.pb.h"
 
@@ -13,22 +14,28 @@ using mapreduce::MapRequest;
 using mapreduce::MapResponse;
 
 // we're hitting race conditions on filenames
+std::mutex process_value_mutex;
 
 class MRCoordinator final : public MapReduce::Service {
 public:
     Status mapCall(ServerContext* context, const MapRequest* req, MapResponse* res) override {
+        // process_value_mutex.lock();
+        std::cout << "Process value " << process_value << std::endl;
         if (process_value < filenames.size()) {
             std::cout << "Processing here" << std::endl;
             std::string worker = "Requesting worker was : " + req->worker_id();
+            
             std::string filename = filenames[process_value];
             res->set_filename(filename);
             res->set_process_id(process_value);
             process_value++;
+            // process_value_mutex.unlock();
             return Status::OK;
         } else {
             std::cout << "Done processing files" << std::endl;
             res->set_filename("");
             res->set_process_id(-1);
+            // process_value_mutex.unlock();
             return Status::OK; // this is in regards to the rpc working
         }
         

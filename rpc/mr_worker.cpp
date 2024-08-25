@@ -32,8 +32,7 @@ public:
         Status status = stub_->mapCall(&context, request, &response);
 
         if (status.ok()) {
-            std::cout << "Filename : " << response.filename() << std::endl;
-            std::cout << "Process ID : " << response.process_id() << std::endl;
+            std::cout << "Filename : " << response.filename() << " Process ID : " << response.process_id() << " Worker ID: " << worker_id << std::endl;
         } else {
             std::cerr << "RPC failed: " << status.error_message() << std::endl;
         }
@@ -107,6 +106,7 @@ int main(int argc, char** argv) {
     bool flag = true;
     while (flag) { 
         flag = client.mapCall(std::to_string(worker_id));
+        sleep(5);
     }
 
     return 0;
