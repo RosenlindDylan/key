@@ -103,6 +103,8 @@ int main(int argc, char** argv) {
     MapClient client(grpc::CreateChannel("0.0.0.0:50051",
         grpc::InsecureChannelCredentials()));
     
+    std::cout << "Worker " << worker_id << " successfully created" << std::endl;
+    
     bool flag = true;
     while (flag) { 
         flag = client.mapCall(std::to_string(worker_id));

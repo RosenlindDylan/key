@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # compile
-
 make -j 4
 
 if [ $? -ne 0 ]; then
@@ -27,9 +26,7 @@ server_pid=$!
 
 sleep 1
 
-for ((i=1; i<=num_workers; i++))
+for ((i=0; i<=num_workers-1; i++))
 do
-  ./mr_worker "$i"
+  ./mr_worker "$i" &
 done
-
-echo "MapReduce completed with " $num_workers " workers"

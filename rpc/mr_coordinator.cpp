@@ -1,6 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstdlib>
 #include <mutex>
 #include <grpcpp/grpcpp.h>
 #include "./mapreduce.grpc.pb.h"
@@ -16,11 +17,20 @@ using mapreduce::MapResponse;
 // we're hitting race conditions on filenames
 std::mutex process_value_mutex;
 
+void checkTermination(const std::vector<int>& tracker);
+void runServer();
+
 class MRCoordinator final : public MapReduce::Service {
 public:
+    MRCoordinator() : process_value(0) {}
+
     Status mapCall(ServerContext* context, const MapRequest* req, MapResponse* res) override {
-        // process_value_mutex.lock();
-        std::cout << "Process value " << process_value << std::endl;
+        process_value_mutex.lock();
+        int local_process_value = process_value;
+        std::cout << "Process value " << process_value << " running on worker " << req->worker_id() << std::endl;
+        process_value++;
+        process_value_mutex.unlock();
+        
         if (process_value < filenames.size()) {
             std::cout << "Processing here" << std::endl;
             std::string worker = "Requesting worker was : " + req->worker_id();
@@ -28,21 +38,23 @@ public:
             std::string filename = filenames[process_value];
             res->set_filename(filename);
             res->set_process_id(process_value);
-            process_value++;
-            // process_value_mutex.unlock();
+            
             return Status::OK;
         } else {
             std::cout << "Done processing files" << std::endl;
             res->set_filename("");
             res->set_process_id(-1);
-            // process_value_mutex.unlock();
+            
+            // check if all workers done
+            checkTermination(process_tracker);
             return Status::OK; // this is in regards to the rpc working
         }
         
     }
 
 private:
-    int process_value = 0;
+    std::vector<int> process_tracker;
+    int process_value;
     std::vector<std::string> filenames = {"pg-being_ernest.txt", "pg-dorian_gray.txt", 
             "pg-frankenstein.txt", "pg-grimm.txt", "pg-huckleberry_finn.txt", 
             "pg-metamorphosis.txt", "pg-sherlock_holmes.txt", "pg-tom_sawyer.txt"};
@@ -64,13 +76,31 @@ void runServer() {
     server->Wait();
 }
 
+void checkTermination(const std::vector<int>& tracker) {
+    for (const int & e : tracker) { // if there's a value other than -1, return
+        if (e != -1) return;
+    }
+    int ret_code = std::system("./kill_processes.sh"); // all workers are done, kill the mr-.* processes
+    if (ret_code != 0) {
+        std::cerr << "Failed to execute the script." << std::endl;
+    } else {
+        std::cout << "Script executed successfully." << std::endl;
+    }
+}
+
 int main(int argc, char** argv) {
+    if (argc < 2) {
+        std::cerr << "Usage: " << argv[0] << " <num_mappers>" << std::endl;
+        return 1;
+    }
     
-    int num_mappers = *argv[1];
+    int num_mappers = std::stoi(argv[1]);
     // int num_reducers = *argv[2];
     
     
     runServer();
+
+    
     
 
     // intermediate step
@@ -80,15 +110,7 @@ int main(int argc, char** argv) {
     int num_files = 8;
 
 
-    /*
-
-    
-
-
-    for (int i = 0; i < filenames.size(); i++) {
-        std::string* fname = &filenames[i]; // maybe not pointer? deference in rpc call?
-        // respond to workers with the filename
-    }
+    /*    
 
     // shuffle and sort phase
 
@@ -106,8 +128,6 @@ int main(int argc, char** argv) {
     }
 
     */
-
-    // do map
 
     // send request to coordinator for reduce function buckets
 
