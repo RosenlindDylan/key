@@ -20,24 +20,40 @@ void mapf(const std::string & ifname, std::ifstream & input, std::ofstream & out
 
 class MapClient {
 public:
-    MapClient(std::shared_ptr<Channel> channel) : stub_(MapReduce::NewStub(channel)) {}
+    MapClient(std::shared_ptr<Channel> channel) : stub_(MapReduce::NewStub(channel)), previous_success(1), retry_counter(3) {}
 
     bool mapCall(const std::string worker_id) {
         MapRequest request;
-        request.set_worker_id(worker_id);
-
         MapResponse response;
-        ClientContext context;
 
-        Status status = stub_->mapCall(&context, request, &response);
+        for (int i = 0; i < retry_counter; i++) { // checking for rpc errors
+            request.set_worker_id(worker_id);
+            request.set_previous_success(previous_success);
+            ClientContext context;
+            Status status = stub_->mapCall(&context, request, &response);
 
-        if (status.ok()) {
-            std::cout << "Filename : " << response.filename() << " Process ID : " << response.process_id() << " Worker ID: " << worker_id << std::endl;
-        } else {
-            std::cerr << "RPC failed: " << status.error_message() << std::endl;
+            if (status.ok()) {
+                std::cout << "Filename : " << response.filename() << " Process ID : " << response.process_id() << " Worker ID: " << worker_id << std::endl;
+                previous_success = 1;
+                break; // succeeded, break out of loop
+            } else {
+                std::cerr << "RPC failed: " << status.error_message() << std::endl;
+                previous_success = 0; // 0 is previous fail
+            }
+
+            if (i == retry_counter - 1) {
+                return false; // all attempts failed
+            }
         }
 
-        if (response.process_id() > -1) {
+        // test to see what happens when a map process error gets thrown
+        /*
+        if (worker_id == "1" && worker_id > 2) {
+            // throw the error - implement this tomorrow
+        }
+        */
+
+        if (response.process_id() > -1) { // checking for done with files
             // call map on the filename 
             std::string ifname;
             ifname = response.filename();
@@ -58,6 +74,8 @@ public:
 
 private:
     std::unique_ptr<MapReduce::Stub> stub_;
+    int previous_success; // 1 is previous success
+    int retry_counter; // number of times to retry, set in constructor to 3
 };
 
 // map function

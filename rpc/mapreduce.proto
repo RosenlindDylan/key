@@ -8,6 +8,7 @@ service MapReduce {
 
 message MapRequest {
     string worker_id = 1;
+    int32 previous_success = 2;
 }
 
 message MapResponse {
