@@ -19,24 +19,24 @@ std::mutex process_value_mutex;
 
 void checkTermination(const std::vector<int>& tracker);
 void runServer();
+int findLastProcess(const int& worker_id, const std::vector<int>& tracker);
 
 class MRCoordinator final : public MapReduce::Service {
 public:
     MRCoordinator() : process_value(0) {}
 
     Status mapCall(ServerContext* context, const MapRequest* req, MapResponse* res) override {
-        process_value_mutex.lock(); // need the mutex this whole time in case we hit the else block? - diagram this out tmr and check if that's necessary
         if (req->previous_success() == 1) { // if this worker's previous map succeeded
-            
+            process_value_mutex.lock();
             int local_process_value = process_value;
             std::cout << "Process value " << process_value << " running on worker " << req->worker_id() << std::endl;
             process_value++;
             process_value_mutex.unlock();
             
-            if (process_value < filenames.size()) { // will get a race condition here TODO
+            if (local_process_value < filenames.size()) {
                 std::cout << "Processing here" << std::endl;
                 std::string worker = "Requesting worker was : " + req->worker_id();
-                std::string filename = filenames[process_value]; // should be local_process_value ? TODO
+                std::string filename = filenames[local_process_value];
                 res->set_filename(filename);
                 res->set_process_id(process_value);
                 
@@ -50,17 +50,20 @@ public:
                 checkTermination(process_tracker);
                 return Status::OK; // this is in regards to the rpc working
             }
-        } else {
+        } else { // this worker's previous map failed, retry
             // find the last process this worker ran
-            int failed_process_id = findLastProcess(req->worker_id(), process_tracker);
+            int failed_process_id = findLastProcess(req->worker_id(), process_tracker); // not hitting TODO
             if (failed_process_id == -1) {
                 std::cerr << "Something went wrong trying to recover a failed map process" << std::endl;
                 return Status::CANCELLED;
             }
             std::cout << "Worker " << req->worker_id() << " has failed on process " << failed_process_id << ", attempting to recover..." << std::endl;
-            // try worker on same process id - it'll try a number of times set by the worker, currently 3
-            // TODO: implement retry
+            // retry worker on same process id - it'll try a number of times set by the worker, currently 3
+            // write something to fail log or something in this branch
+            res->set_filename(filenames[failed_process_id]);
+            res->set_process_id(failed_process_id);
 
+            return Status::OK;
         }
         
     }
@@ -101,7 +104,7 @@ void checkTermination(const std::vector<int>& tracker) { // non - class member m
     }
 }
 
-int findLastProcess(const int& worker_id, cosnt std::vector<int>& tracker) { // non - class member method bc it will be utility for reduce as well
+int findLastProcess(const int& worker_id, const std::vector<int>& tracker) { // non - class member method bc it will be utility for reduce as well
     // find the index of last occurrence of worker_id in tracker
     for (int i = tracker.size() - 1; i > 0; i--) {
         if (tracker[i] == worker_id) {

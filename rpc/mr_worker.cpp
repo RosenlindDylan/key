@@ -20,9 +20,9 @@ void mapf(const std::string & ifname, std::ifstream & input, std::ofstream & out
 
 class MapClient {
 public:
-    MapClient(std::shared_ptr<Channel> channel) : stub_(MapReduce::NewStub(channel)), previous_success(1), retry_counter(3) {}
+    MapClient(std::shared_ptr<Channel> channel, bool debug_flag) : stub_(MapReduce::NewStub(channel)), previous_success(1), retry_counter(3), debug(debug_flag) {}
 
-    bool mapCall(const std::string worker_id) {
+    bool mapCall(const int worker_id) {
         MapRequest request;
         MapResponse response;
 
@@ -45,13 +45,7 @@ public:
                 return false; // all attempts failed
             }
         }
-
-        // test to see what happens when a map process error gets thrown
-        /*
-        if (worker_id == "1" && worker_id > 2) {
-            // throw the error - implement this tomorrow
-        }
-        */
+                
 
         if (response.process_id() > -1) { // checking for done with files
             // call map on the filename 
@@ -60,11 +54,22 @@ public:
             std::ifstream input(ifname);
             
             std::string ofname;
-            ofname = "mr-" + worker_id + "-" + std::to_string(response.process_id()) + ifname; // only temporarily appending filename to check for race conditions on getting files (gdb says multithreaded server?)
+            ofname = "mr-" + std::to_string(worker_id) + "-" + std::to_string(response.process_id()) + ifname; // only temporarily appending filename to check for race conditions on getting files (gdb says multithreaded server?)
             std::ofstream output;
             output.open(ofname);
 
-            mapf(ifname, input, output);
+            mapf(ifname, input, output); // return a bool with this to trigger change in previous_success
+
+            // test to see what happens when a map process error gets thrown
+            if (debug) { // might not be hitting TODO
+                if (worker_id == 1 && worker_id > 2) {
+                    // throw an error, don't actually have to have one just telling the coordinator that there was one during the last map process to see how it handles that
+                    previous_success = -1;
+                }
+
+                debug = false; // only do this once
+            }
+
             return true;
         } else {
             return false;
@@ -76,6 +81,7 @@ private:
     std::unique_ptr<MapReduce::Stub> stub_;
     int previous_success; // 1 is previous success
     int retry_counter; // number of times to retry, set in constructor to 3
+    bool debug; // debug flag for development - see worker main function
 };
 
 // map function
@@ -118,14 +124,20 @@ int main(int argc, char** argv) {
     }
     int worker_id = std::stoi(argv[1]);
 
+    /*
+        toggle this for debug
+        currently have worker 1 going down at some point to simulate an error in one worker     
+    */
+    bool debug = true; 
+
     MapClient client(grpc::CreateChannel("0.0.0.0:50051",
-        grpc::InsecureChannelCredentials()));
+        grpc::InsecureChannelCredentials()), debug);
     
     std::cout << "Worker " << worker_id << " successfully created" << std::endl;
     
     bool flag = true;
     while (flag) { 
-        flag = client.mapCall(std::to_string(worker_id));
+        flag = client.mapCall(worker_id);
         sleep(5);
     }
 
