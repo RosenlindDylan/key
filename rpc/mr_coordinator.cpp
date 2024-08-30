@@ -32,10 +32,11 @@ public:
             std::cout << "Process value " << process_value << " running on worker " << req->worker_id() << std::endl;
             process_value++;
             process_value_mutex.unlock();
-            
+                        
             if (local_process_value < filenames.size()) {
                 std::cout << "Processing here" << std::endl;
                 std::string worker = "Requesting worker was : " + req->worker_id();
+                process_tracker[local_process_value] = req->worker_id();
                 std::string filename = filenames[local_process_value];
                 res->set_filename(filename);
                 res->set_process_id(process_value);
@@ -51,6 +52,12 @@ public:
                 return Status::OK; // this is in regards to the rpc working
             }
         } else { // this worker's previous map failed, retry
+            std::cout << "Worker " << req->worker_id() << " failed." << std::endl;
+            for (auto & e : process_tracker) {
+                std::cout << e << std::endl;
+            }
+
+
             // find the last process this worker ran
             int failed_process_id = findLastProcess(req->worker_id(), process_tracker); // not hitting TODO
             if (failed_process_id == -1) {

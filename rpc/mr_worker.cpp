@@ -62,12 +62,16 @@ public:
 
             // test to see what happens when a map process error gets thrown
             if (debug) { // might not be hitting TODO
-                if (worker_id == 1 && worker_id > 2) {
-                    // throw an error, don't actually have to have one just telling the coordinator that there was one during the last map process to see how it handles that
-                    previous_success = -1;
+                if (worker_id == 1) {
+                    if (response.process_id() > 2) {
+                        // throw an error, don't actually have to have one just telling the coordinator that there was one during the last map process to see how it handles that
+                        std::cout << "Hitting the error block" << std::endl;
+                        previous_success = -1;
+                        debug = false;
+                    }
+                } else {
+                    debug = false; // only do this once
                 }
-
-                debug = false; // only do this once
             }
 
             return true;
