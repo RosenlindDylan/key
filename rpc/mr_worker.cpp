@@ -14,7 +14,6 @@ using mapreduce::MapReduce;
 using mapreduce::MapRequest;
 using mapreduce::MapResponse;
 
-// we're hitting race conditions on filenames
 
 void mapf(const std::string & ifname, std::ifstream & input, std::ofstream & output);
 
@@ -33,7 +32,7 @@ public:
             Status status = stub_->mapCall(&context, request, &response);
 
             if (status.ok()) {
-                std::cout << "Filename : " << response.filename() << " Process ID : " << response.process_id() << " Worker ID: " << worker_id << std::endl;
+                std::cout << "Filename : " << response.filename() << ", Process ID : " << response.process_id() << ", Worker ID: " << worker_id << std::endl;
                 previous_success = 1;
                 break; // succeeded, break out of loop
             } else {
