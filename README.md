@@ -1,1 +1,1 @@
-Working through MIT 6.5840 in C++
+Distributed MapReduce using gRPC and Protocol Buffers
