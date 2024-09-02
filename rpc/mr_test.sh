@@ -34,8 +34,9 @@ if ls mr-*.txt 1> /dev/null 2>&1; then
 fi
 
 num_workers=3
+num_reducers=3
 
-./mr_coordinator "$num_workers" &
+./mr_coordinator "$num_workers" "$num_reducers" &
 
 server_pid=$!
 

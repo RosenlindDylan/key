@@ -129,9 +129,9 @@ int main(int argc, char** argv) {
 
     /*
         toggle this for debug
-        currently have worker 1 going down at some point to simulate an error in one worker     
+        currently have worker 1 going down at some point to simulate an temporary (1 cycle) fault in one worker
     */
-    bool debug = true; 
+    bool debug = false; 
 
     MapClient client(grpc::CreateChannel("0.0.0.0:50051",
         grpc::InsecureChannelCredentials()), debug);
