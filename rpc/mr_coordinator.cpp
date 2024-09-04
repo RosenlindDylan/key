@@ -50,7 +50,9 @@ public:
                 std::string filename = filenames[local_process_value];
                 res->set_filename(filename);
                 res->set_process_id(local_process_value);
-                shuffleSort(req->worker_id);
+                if (local_process_value > num_mappers) {
+                    shuffleSort(req->worker_id());
+                }
                 return Status::OK;
             } else {
                 std::cout << "Done processing files" << std::endl;
@@ -94,6 +96,7 @@ public:
     // currently it'll be not really taking advantage of the server multithreading
     // just whenever a worker calls for a new filename process their last
     void shuffleSort(const int worker_id) { // test this out TODO
+        
         outfiles_mutex.lock();
         std::string infile = filenames[findLastProcess(worker_id, process_tracker)]; // is last proces a valid assumption? think @ this
         std::ifstream input(infile);
