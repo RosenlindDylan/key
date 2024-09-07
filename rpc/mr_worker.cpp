@@ -25,6 +25,7 @@ public:
         MapRequest request;
         MapResponse response;
 
+        int backoff = 1; // for time between retries
         for (int i = 0; i < retry_counter; i++) { // checking for rpc errors
             request.set_worker_id(worker_id);
             request.set_previous_success(previous_success);
@@ -36,13 +37,16 @@ public:
                 previous_success = 1;
                 break; // succeeded, break out of loop
             } else {
-                std::cerr << "RPC failed: " << status.error_message() << std::endl;
+                std::cerr << "RPC failed on worker " << worker_id << ": " << status.error_message() << std::endl;
                 previous_success = 0; // 0 is previous fail
             }
 
             if (i == retry_counter - 1) {
                 return false; // all attempts failed
             }
+
+            sleep(backoff);
+            backoff *= 2;
         }
                 
 
@@ -60,18 +64,18 @@ public:
             mapf(ifname, input, output); // return a bool with this to trigger change in previous_success
 
             // test to see what happens when a map process error gets thrown
-            if (debug) { // might not be hitting TODO
-                if (worker_id == 1) {
-                    if (response.process_id() > 2) {
-                        // throw an error, don't actually have to have one just telling the coordinator that there was one during the last map process to see how it handles that
-                        std::cout << "Hitting the error block" << std::endl;
-                        previous_success = -1;
-                        debug = false;
-                    }
-                } else {
-                    debug = false; // only do this once
-                }
-            }
+            // if (debug) {
+            //     if (worker_id == 1) {
+            //         if (response.process_id() > 2) {
+            //             // throw an error, don't actually have to have one just telling the coordinator that there was one during the last map process to see how it handles that
+            //             std::cout << "Hitting the error block" << std::endl;
+            //             previous_success = -1;
+            //             debug = false;
+            //         }
+            //     } else {
+            //         debug = false; // only do this once
+            //     }
+            // }
 
             return true;
         } else {
@@ -129,7 +133,7 @@ int main(int argc, char** argv) {
 
     /*
         toggle this for debug
-        currently have worker 1 going down at some point to simulate an temporary (1 cycle) fault in one worker
+        this toggle currently has worker 1 going down at some point to simulate an temporary (1 cycle) fault in one worker
     */
     bool debug = false; 
 
